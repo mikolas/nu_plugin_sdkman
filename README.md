@@ -32,19 +32,62 @@ nu build.nu
 
 ## Installation
 
-1. Build the plugin (see above)
+### Quick Install (Recommended)
 
-2. Register the plugin with Nushell:
+**Using bash:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/nu_plugin_sdkman/main/install.sh | bash
+```
 
+**Using Nushell:**
 ```nushell
+http get https://raw.githubusercontent.com/YOUR_USERNAME/nu_plugin_sdkman/main/install.nu | save install.nu
+nu install.nu
+```
+
+### Manual Installation
+
+#### From Pre-built Binaries
+
+1. Download the binary for your platform from [Releases](https://github.com/YOUR_USERNAME/nu_plugin_sdkman/releases/latest):
+   - Linux x86_64: `nu_plugin_sdkman-linux-x86_64`
+   - Linux ARM64: `nu_plugin_sdkman-linux-aarch64`
+   - macOS x86_64: `nu_plugin_sdkman-darwin-x86_64`
+   - macOS ARM64: `nu_plugin_sdkman-darwin-aarch64`
+   - Windows: `nu_plugin_sdkman-windows-x86_64.exe`
+
+2. Make it executable (Unix):
+   ```bash
+   chmod +x nu_plugin_sdkman-*
+   ```
+
+3. Move to a directory in your PATH:
+   ```bash
+   mv nu_plugin_sdkman-* ~/.local/bin/nu_plugin_sdkman
+   ```
+
+4. Register with Nushell:
+   ```nushell
+   plugin add ~/.local/bin/nu_plugin_sdkman
+   ```
+
+5. Restart Nushell
+
+#### From Source
+
+**Prerequisites:**
+- Rust toolchain (1.70+)
+- Nushell 0.110.0+
+
+**Build and install:**
+```bash
+git clone https://github.com/YOUR_USERNAME/nu_plugin_sdkman.git
+cd nu_plugin_sdkman
+cargo build --release
 plugin add ./target/release/nu_plugin_sdkman
 ```
 
-3. Restart Nushell or reload plugins:
-
-```nushell
-plugin use sdkman
-```
+Then restart Nushell.
 
 ## Usage
 
