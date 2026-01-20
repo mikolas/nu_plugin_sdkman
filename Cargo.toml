@@ -1,0 +1,24 @@
+[package]
+name = "nu_plugin_sdkman"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "nu_plugin_sdkman"
+path = "src/main.rs"
+
+[dependencies]
+nu-plugin = "0.110.0"
+nu-protocol = "0.110.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+flate2 = "1.0"
+tar = "0.4"
+zip = "2.2"
+dirs = "5.0"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
