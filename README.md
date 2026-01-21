@@ -318,12 +318,12 @@ cargo test
 
 **Test Coverage:**
 - ✅ API version parsing (5 tests)
-- ✅ Archive extraction (3 tests)
+- ✅ Archive extraction (5 tests - tar.gz and zip)
 - ✅ .sdkmanrc parsing (6 tests)
 - ✅ Symlink handling (3 tests)
 - ✅ Integration tests (3 tests)
 
-**Total: 20/20 tests passing (100%)**
+**Total: 22/22 tests passing (100%)**
 
 ## Requirements
 

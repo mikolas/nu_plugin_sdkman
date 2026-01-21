@@ -57,4 +57,42 @@ mod tests {
         assert!(result.is_ok());
         assert!(target.exists());
     }
+
+    #[test]
+    fn test_extract_zip() {
+        let temp = tempdir().unwrap();
+        
+        // Use the test fixture
+        let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/test.zip");
+        
+        // Extract to temp dir
+        archive::extract_zip(&fixture_path, temp.path()).unwrap();
+        
+        // Verify structure
+        let extracted = temp.path().join("test-sdk");
+        assert!(extracted.exists());
+        assert!(extracted.is_dir());
+        
+        let bin_dir = extracted.join("bin");
+        assert!(bin_dir.exists());
+        assert!(bin_dir.is_dir());
+        
+        let test_file = bin_dir.join("test");
+        assert!(test_file.exists());
+        
+        // Verify content
+        let content = fs::read_to_string(&test_file).unwrap();
+        assert!(content.contains("#!/bin/sh"));
+        assert!(content.contains("echo \"test\""));
+    }
+
+    #[test]
+    fn test_extract_zip_nonexistent() {
+        let temp = tempdir().unwrap();
+        let fake_archive = temp.path().join("nonexistent.zip");
+        
+        let result = archive::extract_zip(&fake_archive, temp.path());
+        assert!(result.is_err());
+    }
 }
