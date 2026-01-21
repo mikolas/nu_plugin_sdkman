@@ -1,8 +1,11 @@
 #!/usr/bin/env nu
 # SDKMAN! Nushell Plugin Installer
 
-const REPO = "YOUR_GITHUB_USERNAME/nu_plugin_sdkman"
-const INSTALL_DIR = ($env.HOME | path join ".local" "bin")
+const REPO = "mikolas/nu_plugin_sdkman"
+
+def get-install-dir [] {
+    $env.HOME | path join ".local" "bin"
+}
 
 # Detect platform
 def detect-platform [] {
@@ -10,10 +13,10 @@ def detect-platform [] {
     let arch = (sys host | get cpu | first | get arch)
     
     match [$os, $arch] {
-        ["Linux", "x86_64"] => "linux-x86_64"
-        ["Linux", "aarch64"] => "linux-aarch64"
-        ["Darwin", "x86_64"] => "darwin-x86_64"
-        ["Darwin", "aarch64"] => "darwin-aarch64"
+        ["Linux", "x86_64"] => "x86_64-unknown-linux-gnu"
+        ["Linux", "aarch64"] => "aarch64-unknown-linux-gnu"
+        ["Darwin", "x86_64"] => "x86_64-apple-darwin"
+        ["Darwin", "aarch64"] => "aarch64-apple-darwin"
         _ => (error make {msg: $"Unsupported platform: ($os) ($arch)"})
     }
 }
@@ -40,10 +43,15 @@ let temp_file = (mktemp)
 http get $download_url | save -f $temp_file
 
 # Install
-mkdir $INSTALL_DIR
-let install_path = ($INSTALL_DIR | path join "nu_plugin_sdkman")
+let install_dir = (get-install-dir)
+mkdir $install_dir
+let install_path = ($install_dir | path join "nu_plugin_sdkman")
+
+# Move and make executable (cross-platform)
 mv -f $temp_file $install_path
-chmod +x $install_path
+if (sys host | get name) != "Windows" {
+    ^chmod +x $install_path
+}
 
 print $"✓ Binary installed to ($install_path)"
 

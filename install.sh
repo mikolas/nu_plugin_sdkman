@@ -3,7 +3,7 @@
 
 set -e
 
-REPO="YOUR_GITHUB_USERNAME/nu_plugin_sdkman"
+REPO="mikolas/nu_plugin_sdkman"
 INSTALL_DIR="${HOME}/.local/bin"
 
 # Detect OS and architecture
@@ -13,16 +13,16 @@ ARCH=$(uname -m)
 case "${OS}" in
     linux)
         case "${ARCH}" in
-            x86_64) PLATFORM="linux-x86_64" ;;
-            aarch64|arm64) PLATFORM="linux-aarch64" ;;
+            x86_64) PLATFORM="x86_64-unknown-linux-gnu" ;;
+            aarch64|arm64) PLATFORM="aarch64-unknown-linux-gnu" ;;
             *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
         esac
         BINARY_NAME="nu_plugin_sdkman"
         ;;
     darwin)
         case "${ARCH}" in
-            x86_64) PLATFORM="darwin-x86_64" ;;
-            arm64) PLATFORM="darwin-aarch64" ;;
+            x86_64) PLATFORM="x86_64-apple-darwin" ;;
+            arm64) PLATFORM="aarch64-apple-darwin" ;;
             *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
         esac
         BINARY_NAME="nu_plugin_sdkman"

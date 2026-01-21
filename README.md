@@ -4,21 +4,26 @@
 
 A native Nushell plugin for SDKMAN! written in Rust, using the Nushell 0.110.0 plugin protocol.
 
+## Status
+
+⚠️ **Early Development** - Core functionality implemented, testing and release automation in progress.
+
 ## Features
 
 - Native Nushell plugin (binary, not scripts)
 - Full SDKMAN! API integration
-- Feature parity with bash SDKMAN (24 commands + aliases)
-- Pre-formatted text output matching bash SDKMAN
+- Command coverage matching bash SDKMAN (24 commands + aliases)
+- Structured data output for Nushell pipelines
 - Cross-platform support (Linux, macOS, Windows)
 - Fast and efficient Rust implementation
+- Pure Rust archive handling (no external tools required)
 
 ## Building
 
 ### Prerequisites
 
 - Rust toolchain (1.70+)
-- Nushell 0.110.0
+- Nushell 0.110.0+
 
 ### Build
 
@@ -26,37 +31,16 @@ A native Nushell plugin for SDKMAN! written in Rust, using the Nushell 0.110.0 p
 cargo build --release
 ```
 
-Or use the build script:
-
-```nushell
-nu build.nu
-```
-
 ## Installation
 
-### Quick Install (Recommended)
+### From Pre-built Binaries (Recommended)
 
-**Using bash:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/nu_plugin_sdkman/main/install.sh | bash
-```
-
-**Using Nushell:**
-```nushell
-http get https://raw.githubusercontent.com/YOUR_USERNAME/nu_plugin_sdkman/main/install.nu | save install.nu
-nu install.nu
-```
-
-### Manual Installation
-
-#### From Pre-built Binaries
-
-1. Download the binary for your platform from [Releases](https://github.com/YOUR_USERNAME/nu_plugin_sdkman/releases/latest):
-   - Linux x86_64: `nu_plugin_sdkman-linux-x86_64`
-   - Linux ARM64: `nu_plugin_sdkman-linux-aarch64`
-   - macOS x86_64: `nu_plugin_sdkman-darwin-x86_64`
-   - macOS ARM64: `nu_plugin_sdkman-darwin-aarch64`
-   - Windows: `nu_plugin_sdkman-windows-x86_64.exe`
+1. Download the binary for your platform from [Releases](https://github.com/mikolas/nu_plugin_sdkman/releases/latest):
+   - Linux x86_64: `nu_plugin_sdkman-x86_64-unknown-linux-gnu`
+   - Linux ARM64: `nu_plugin_sdkman-aarch64-unknown-linux-gnu`
+   - macOS x86_64: `nu_plugin_sdkman-x86_64-apple-darwin`
+   - macOS ARM64: `nu_plugin_sdkman-aarch64-apple-darwin`
+   - Windows x86_64: `nu_plugin_sdkman-x86_64-pc-windows-msvc.exe`
 
 2. Make it executable (Unix):
    ```bash
@@ -75,7 +59,7 @@ nu install.nu
 
 5. Restart Nushell
 
-#### From Source
+### From Source
 
 **Prerequisites:**
 - Rust toolchain (1.70+)
@@ -83,7 +67,7 @@ nu install.nu
 
 **Build and install:**
 ```bash
-git clone https://github.com/YOUR_USERNAME/nu_plugin_sdkman.git
+git clone https://github.com/mikolas/nu_plugin_sdkman.git
 cd nu_plugin_sdkman
 cargo build --release
 plugin add ./target/release/nu_plugin_sdkman
@@ -111,7 +95,9 @@ sdk list java               # List Java versions grouped by vendor
 sdk list java | less        # Paged view
 ```
 
-Output is pre-formatted text from SDKMAN API, matching the bash version.
+Output format:
+- `sdk list` (no args) returns pre-formatted text from SDKMAN API
+- `sdk list <candidate>` returns structured table with columns: vendor, use, version, dist, status, identifier
 
 ### Install SDKs
 
@@ -225,7 +211,9 @@ All commands are implemented as `PluginCommand` traits:
 Nushell → Plugin Protocol → Command Handler → API/Filesystem → Response → Nushell
 ```
 
-List commands return pre-formatted text from SDKMAN API. Other commands return structured data or status messages.
+- `sdk list` (no args) returns pre-formatted text from SDKMAN API
+- `sdk list <candidate>` returns structured table with columns: vendor, use, version, dist, status, identifier
+- Other commands return structured data or status messages
 
 ### Directory Structure
 
@@ -242,31 +230,33 @@ List commands return pre-formatted text from SDKMAN API. Other commands return s
 
 ## Environment Integration
 
-The plugin manages SDK installations but doesn't automatically modify your shell environment. To use installed SDKs:
+The plugin creates symlinks (Unix) or version markers (Windows) at `~/.sdkman/candidates/<candidate>/current` that automatically point to the active version when you run `sdk use` or `sdk default`.
 
-### Option 1: Manual PATH
+### Setup (One-time)
 
-```nushell
-$env.PATH = ($env.PATH | prepend ~/.sdkman/candidates/java/current/bin)
-```
-
-### Option 2: Nushell Config
-
-Add to your `config.nu`:
+Add the `current/bin` directories to your PATH in `config.nu`:
 
 ```nushell
-def --env sdk-env [candidate: string] {
-    let current = (sdk current $candidate | get version)
-    let bin_dir = $"~/.sdkman/candidates/($candidate)/($current)/bin"
-    $env.PATH = ($env.PATH | prepend $bin_dir)
-}
+$env.PATH = ($env.PATH | prepend [
+    ~/.sdkman/candidates/java/current/bin
+    ~/.sdkman/candidates/gradle/current/bin
+    ~/.sdkman/candidates/maven/current/bin
+])
 ```
 
-Then use:
+### Usage
+
+After setup, switching versions is automatic:
 
 ```nushell
-sdk-env java
+sdk use java 17        # The 'current' symlink now points to Java 17
+java --version         # Uses Java 17
+
+sdk use java 21        # The 'current' symlink now points to Java 21  
+java --version         # Uses Java 21
 ```
+
+No need to modify PATH again - the symlink/marker handles it.
 
 ## Differences from Bash SDKMAN
 
@@ -275,6 +265,11 @@ sdk-env java
 3. **Explicit Commands**: All operations are explicit plugin commands
 4. **Feature Complete**: All major bash commands implemented (24 commands total)
 5. **Aliases Supported**: All bash aliases (i, rm, ls, u, c, ug, d, h, v) work
+
+**Note:** Some commands have basic implementations:
+- `config` - Opens editor but doesn't manage config file yet
+- `offline` - Command exists but offline mode not fully implemented
+- `flush` - Clears directories but cache management is basic
 
 ## Development
 
@@ -321,12 +316,12 @@ src/
 cargo test
 ```
 
+**Note:** Test suite is currently under development.
+
 ## Requirements
 
 - Nushell 0.110.0 or later
 - Internet connection for downloading SDKs
-- `tar` and `gzip` for Unix systems
-- `unzip` for Windows
 
 ## License
 
@@ -347,3 +342,6 @@ No manual coding was required. The entire development process was conversational
 
 This is a Nushell plugin implementation of SDKMAN!. For the original project:
 https://github.com/sdkman/sdkman-cli
+
+Issues and pull requests are welcome at:
+https://github.com/mikolas/nu_plugin_sdkman
