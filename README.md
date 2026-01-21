@@ -1,5 +1,7 @@
 # SDKMAN! Nushell Plugin
 
+> ⚡ **100% Vibe Coded** - This entire project was created through AI-assisted development using Amazon Q Developer.
+
 A native Nushell plugin for SDKMAN! written in Rust, using the Nushell 0.110.0 plugin protocol.
 
 ## Features
@@ -329,6 +331,17 @@ cargo test
 ## License
 
 Apache License 2.0 (same as SDKMAN!)
+
+## Development Story
+
+This project was **entirely vibe coded** using [Amazon Q Developer](https://aws.amazon.com/q/developer/) - from initial concept to full implementation, including:
+- Complete Rust codebase (24 commands + aliases)
+- GitHub Actions CI/CD pipeline
+- Cross-platform builds (Linux, macOS, Windows)
+- Installation scripts
+- Documentation
+
+No manual coding was required. The entire development process was conversational, demonstrating the power of AI-assisted development.
 
 ## Contributing
 
