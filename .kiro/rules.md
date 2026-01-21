@@ -1,5 +1,97 @@
 # Coding Rules for nu_plugin_sdkman
 
+## Rust Best Practices (Official Guidelines)
+
+### Common Traits (C-COMMON-TRAITS)
+Types should eagerly implement common traits when applicable:
+- `Copy` - For types that can be copied bitwise
+- `Clone` - For types that can be duplicated
+- `Eq`, `PartialEq` - For equality comparisons
+- `Ord`, `PartialOrd` - For ordering
+- `Hash` - For use in hash maps/sets
+- `Default` - For default values
+- `Debug` - For debugging (always implement)
+- `Display` - For user-facing output
+- `Serialize`, `Deserialize` - For data interchange
+
+### Type Conversions (C-CONV-TRAITS)
+Implement standard conversion traits:
+- `From<T>` / `Into<T>` - Infallible conversions
+- `TryFrom<T>` / `TryInto<T>` - Fallible conversions
+- `AsRef<T>` / `AsMut<T>` - Cheap reference conversions
+- `Deref` / `DerefMut` - Smart pointer behavior
+
+### Builder Pattern (C-BUILDER)
+For types with many optional parameters:
+```rust
+pub struct Config {
+    host: String,
+    port: u16,
+    timeout: Duration,
+}
+
+impl Config {
+    pub fn builder() -> ConfigBuilder {
+        ConfigBuilder::default()
+    }
+}
+
+pub struct ConfigBuilder {
+    host: Option<String>,
+    port: Option<u16>,
+    timeout: Option<Duration>,
+}
+
+impl ConfigBuilder {
+    pub fn host(mut self, host: impl Into<String>) -> Self {
+        self.host = Some(host.into());
+        self
+    }
+    
+    pub fn build(self) -> Result<Config, Box<dyn Error>> {
+        // Validate and construct
+    }
+}
+```
+
+### Semantic Versioning (C-SEMVER)
+- Breaking changes require major version bump
+- New features require minor version bump
+- Bug fixes require patch version bump
+
+### Documentation (C-DOCS)
+```rust
+/// Brief one-line summary.
+///
+/// More detailed explanation if needed.
+///
+/// # Arguments
+/// * `param` - Description
+///
+/// # Returns
+/// Description of return value
+///
+/// # Errors
+/// When this function returns an error and why
+///
+/// # Panics
+/// When this function panics (if ever)
+///
+/// # Examples
+/// ```
+/// let result = function(arg);
+/// assert_eq!(result, expected);
+/// ```
+pub fn function(param: Type) -> Result<ReturnType, Error> {
+    // ...
+}
+```
+
+### Word Order (C-WORD-ORDER)
+Maintain consistent word order in names:
+- `StrBuf` and `StrBufMut` (not `MutStrBuf`)
+- `IpAddr` and `SocketAddr` (not `AddrIp`)
+
 ## Code Style
 
 ### General Principles
@@ -8,7 +100,7 @@
 - **Consistency:** Follow existing patterns in the codebase
 - **Rust Idioms:** Use standard Rust patterns and conventions
 
-### Error Handling
+### Error Handling (Official Guidelines)
 ```rust
 // ✅ DO: Use Result and ? operator
 pub fn do_something() -> Result<(), Box<dyn Error>> {
@@ -28,16 +120,44 @@ return Err(format!("Failed to install {} {}: {}", candidate, version, e).into())
 return Err("Failed".into());
 ```
 
+**Panic vs Result (C-FAILURE):**
+- Use `Result` for expected failures (network, I/O, user input)
+- Use `panic!` only for programming errors (invariant violations)
+- Document panic conditions in doc comments
+
+**Error Types:**
+- Consider custom error enums for libraries
+- Use `thiserror` for deriving error traits
+- Implement `std::error::Error` for custom errors
+
 ### Function Size
 - Keep functions under 50 lines
 - Extract complex logic into helper functions
 - One function = one responsibility
 
-### Naming Conventions
-- Functions: `snake_case`
-- Types: `PascalCase`
-- Constants: `SCREAMING_SNAKE_CASE`
-- Be descriptive: `get_installed_versions()` not `get_vers()`
+### Naming Conventions (RFC 430 + API Guidelines)
+- Functions/methods: `snake_case`
+- Types/traits: `UpperCamelCase`
+- Enum variants: `UpperCamelCase`
+- Constants/statics: `SCREAMING_SNAKE_CASE`
+- Type parameters: Single uppercase letter `T`, `E`, `K`, `V`
+- Lifetimes: Short lowercase `'a`, `'de`, `'src`
+- Acronyms: `Uuid` not `UUID`, `is_xid_start` not `is_XID_start`
+- Be descriptive: `installed_versions()` not `get_vers()`
+
+**Conversions (C-CONV):**
+- `as_` - Cheap reference-to-reference conversion
+- `to_` - Expensive conversion (allocates/copies)
+- `into_` - Consuming conversion (takes ownership)
+
+**Getters (C-GETTER):**
+- No `get_` prefix: `version()` not `get_version()`
+- Use `get_` only when there's a matching `set_` or for mutable access
+
+**Constructors:**
+- `new()` - Standard constructor
+- `with_capacity()` - Constructor with details
+- `from_*()` - Conversion constructors
 
 ## Testing Rules
 
@@ -135,7 +255,7 @@ fn install(candidate: &str) {
 
 ## Documentation
 
-### Public APIs
+### Public APIs (C-DOCS)
 ```rust
 /// Installs a candidate version from the SDKMAN API.
 ///
@@ -144,17 +264,35 @@ fn install(candidate: &str) {
 /// * `version` - The version to install (e.g., "17.0.9-oracle")
 /// * `platform` - The platform identifier
 ///
+/// # Returns
+/// `Ok(())` on successful installation
+///
 /// # Errors
-/// Returns error if download fails or extraction fails
+/// Returns error if:
+/// - Download fails (network issues)
+/// - Extraction fails (corrupted archive)
+/// - Filesystem operations fail (permissions)
+///
+/// # Examples
+/// ```no_run
+/// install_candidate("java", "17.0.9-oracle", "linux64")?;
+/// ```
 pub fn install_candidate(candidate: &str, version: &str, platform: &str) -> Result<(), Box<dyn Error>> {
     // ...
 }
 ```
 
+**Documentation Requirements:**
+- All public items must have doc comments
+- Include examples for non-trivial functions
+- Document all error conditions
+- Document panic conditions (if any)
+- Use `///` for item docs, `//!` for module docs
+
 ### Comments
 - Explain "why" not "what"
 - Document non-obvious behavior
-- Add TODO/FIXME with context
+- Add TODO/FIXME with context and date
 
 ## Performance
 
@@ -218,6 +356,19 @@ before creating the symlink, preventing "No such file" errors.
 - ⚠️ Magic numbers (use constants)
 - ⚠️ Generic variable names (x, tmp, data)
 - ⚠️ Commented-out code (delete it)
+
+## References
+
+### Official Rust Guidelines
+- [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) - Official naming, design patterns, and best practices
+- [RFC 430](https://github.com/rust-lang/rfcs/blob/master/text/0430-finalizing-naming-conventions.md) - Naming conventions
+- [Rust Error Handling](https://doc.rust-lang.org/book/ch09-00-error-handling.html) - The Rust Book chapter on errors
+
+### Additional Resources
+- [Microsoft Rust Guidelines](https://github.com/microsoft/code-with-engineering-playbook/tree/main/docs/rust) - Enterprise Rust practices
+- [Rust Design Patterns](https://rust-unofficial.github.io/patterns/) - Common patterns and anti-patterns
+
+Content was rephrased for compliance with licensing restrictions.
 
 ## Code Review Checklist
 
