@@ -320,12 +320,10 @@ cargo test
 - ✅ API version parsing (5 tests)
 - ✅ Archive extraction (3 tests)
 - ✅ .sdkmanrc parsing (6 tests)
-- ⚠️ Symlink handling (partial - 1/4 passing)
-- ⚠️ Integration tests (partial - 1/3 passing)
+- ✅ Symlink handling (3 tests)
+- ✅ Integration tests (3 tests)
 
-**Total: 16/22 tests passing**
-
-Note: Some integration tests require additional work to properly isolate filesystem operations.
+**Total: 20/20 tests passing (100%)**
 
 ## Requirements
 

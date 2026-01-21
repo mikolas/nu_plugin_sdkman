@@ -2,9 +2,11 @@
 mod tests {
     use std::fs;
     use tempfile::tempdir;
+    use serial_test::serial;
     use nu_plugin_sdkman::core::env;
 
     #[test]
+    #[serial]
     #[cfg(unix)]
     fn test_set_and_get_current_version_unix() {
         let temp = tempdir().unwrap();
@@ -34,6 +36,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     #[cfg(windows)]
     fn test_set_and_get_current_version_windows() {
         let temp = tempdir().unwrap();
@@ -65,6 +68,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_get_current_version_not_set() {
         let temp = tempdir().unwrap();
         std::env::set_var("SDKMAN_DIR", temp.path());
@@ -79,6 +83,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_switch_versions() {
         let temp = tempdir().unwrap();
         std::env::set_var("SDKMAN_DIR", temp.path());

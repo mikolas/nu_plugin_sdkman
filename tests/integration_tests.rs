@@ -3,10 +3,12 @@ mod tests {
     use std::fs;
     use std::path::Path;
     use tempfile::tempdir;
+    use serial_test::serial;
     use nu_plugin_sdkman::core::env;
     use nu_plugin_sdkman::utils::archive;
 
     #[test]
+    #[serial]
     fn test_install_and_use_flow() {
         let temp = tempdir().unwrap();
         let sdkman_path = temp.path().to_str().unwrap();
@@ -41,6 +43,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_install_multiple_versions() {
         let temp = tempdir().unwrap();
         let sdkman_path = temp.path().to_str().unwrap();
@@ -66,6 +69,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_use_nonexistent_version() {
         let temp = tempdir().unwrap();
         let sdkman_path = temp.path().to_str().unwrap();

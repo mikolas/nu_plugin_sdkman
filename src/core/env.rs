@@ -92,6 +92,16 @@ pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn
     let current = candidate_current(candidate)?;
     let target = candidate_dir(candidate, version)?;
     
+    // Check if target version exists
+    if !target.exists() {
+        return Err(format!("{} {} is not installed", candidate, version).into());
+    }
+    
+    // Ensure parent directory exists
+    if let Some(parent) = current.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    
     if current.exists() {
         std::fs::remove_dir_all(&current)?;
     }
