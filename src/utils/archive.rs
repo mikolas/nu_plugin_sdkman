@@ -5,6 +5,16 @@ use std::path::Path;
 use tar::Archive;
 use zip::ZipArchive;
 
+/// Extracts a tar.gz archive to the destination directory.
+///
+/// Uses pure Rust implementation (no external tar command required).
+///
+/// # Arguments
+/// * `archive` - Path to the .tar.gz file
+/// * `destination` - Directory to extract into
+///
+/// # Errors
+/// Returns error if file cannot be opened, decompressed, or extracted
 pub fn extract_tar_gz(archive: &Path, destination: &Path) -> Result<(), Box<dyn Error>> {
     let file = File::open(archive)?;
     let gz = GzDecoder::new(file);
@@ -17,6 +27,17 @@ pub fn extract_tar_gz(archive: &Path, destination: &Path) -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// Extracts a zip archive to the destination directory.
+///
+/// Uses pure Rust implementation (no external unzip command required).
+/// Handles both files and directories within the archive.
+///
+/// # Arguments
+/// * `archive` - Path to the .zip file
+/// * `destination` - Directory to extract into
+///
+/// # Errors
+/// Returns error if file cannot be opened, read, or extracted
 pub fn extract_zip(archive: &Path, destination: &Path) -> Result<(), Box<dyn Error>> {
     let file = File::open(archive)?;
     let mut archive = ZipArchive::new(file)?;
@@ -43,6 +64,20 @@ pub fn extract_zip(archive: &Path, destination: &Path) -> Result<(), Box<dyn Err
     Ok(())
 }
 
+/// Extracts an archive based on file extension.
+///
+/// Automatically detects format and calls appropriate extraction function.
+///
+/// # Supported Formats
+/// - `.gz` - tar.gz archives (Unix/Linux standard)
+/// - `.zip` - zip archives (Windows standard)
+///
+/// # Arguments
+/// * `archive` - Path to the archive file
+/// * `destination` - Directory to extract into
+///
+/// # Errors
+/// Returns error if format is unsupported or extraction fails
 pub fn extract(archive: &Path, destination: &Path) -> Result<(), Box<dyn Error>> {
     let ext = archive.extension().and_then(|s| s.to_str()).unwrap_or("");
     

@@ -1,5 +1,12 @@
 use std::path::PathBuf;
 
+/// Detects the current platform and returns the SDKMAN API platform identifier.
+///
+/// # Returns
+/// Platform string in SDKMAN format (e.g., "linuxx64", "darwinarm64")
+///
+/// # Errors
+/// Returns error if the OS/architecture combination is not supported
 pub fn detect_platform() -> Result<String, Box<dyn std::error::Error>> {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
@@ -14,34 +21,63 @@ pub fn detect_platform() -> Result<String, Box<dyn std::error::Error>> {
     }
 }
 
+/// Returns the SDKMAN installation directory path.
+///
+/// Checks `SDKMAN_DIR` environment variable first (used for test isolation),
+/// then falls back to `~/.sdkman`.
+///
+/// # Returns
+/// Path to SDKMAN directory
+///
+/// # Errors
+/// Returns error if home directory cannot be determined
 pub fn sdkman_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    // Check for test override first
+    // Check for test override first - allows tests to use temp directories
+    // without touching the user's actual ~/.sdkman installation
     if let Ok(dir) = std::env::var("SDKMAN_DIR") {
         return Ok(PathBuf::from(dir));
     }
     
-    // Normal behavior
+    // Normal behavior: use ~/.sdkman
     dirs::home_dir()
         .map(|p| p.join(".sdkman"))
         .ok_or_else(|| "Could not find home directory".into())
 }
 
+/// Returns the candidates directory path (`~/.sdkman/candidates`).
 pub fn candidates_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     sdkman_dir().map(|p| p.join("candidates"))
 }
 
+/// Returns the installation directory for a specific candidate version.
+///
+/// # Arguments
+/// * `candidate` - Candidate name (e.g., "java")
+/// * `version` - Version identifier (e.g., "17.0.9-oracle")
 pub fn candidate_dir(candidate: &str, version: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     candidates_dir().map(|p| p.join(candidate).join(version))
 }
 
+/// Returns the "current" symlink/marker path for a candidate.
+///
+/// On Unix: This is a symlink pointing to the active version directory.
+/// On Windows: This is a directory containing a `.version` file.
 pub fn candidate_current(candidate: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     candidates_dir().map(|p| p.join(candidate).join("current"))
 }
 
+/// Checks if a specific candidate version is installed.
 pub fn is_installed(candidate: &str, version: &str) -> bool {
     candidate_dir(candidate, version).map(|p| p.exists()).unwrap_or(false)
 }
 
+/// Returns a list of all installed versions for a candidate.
+///
+/// # Arguments
+/// * `candidate` - Candidate name (e.g., "java")
+///
+/// # Returns
+/// Vector of version strings, or empty vector if none installed
 pub fn get_installed_versions(candidate: &str) -> Vec<String> {
     let base = match candidates_dir() {
         Ok(dir) => dir.join(candidate),
@@ -65,6 +101,16 @@ pub fn get_installed_versions(candidate: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Gets the currently active version for a candidate.
+///
+/// On Unix: Reads the symlink target and extracts the version directory name.
+/// On Windows: Reads the `.version` file content from the current directory.
+///
+/// # Arguments
+/// * `candidate` - Candidate name (e.g., "java")
+///
+/// # Returns
+/// Some(version) if a version is set, None otherwise
 pub fn get_current_version(candidate: &str) -> Option<String> {
     let current = candidate_current(candidate).ok()?;
     if !current.exists() {
@@ -73,6 +119,7 @@ pub fn get_current_version(candidate: &str) -> Option<String> {
     
     #[cfg(unix)]
     {
+        // On Unix: read the symlink and extract the version directory name
         std::fs::read_link(&current)
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
@@ -80,6 +127,9 @@ pub fn get_current_version(candidate: &str) -> Option<String> {
     
     #[cfg(windows)]
     {
+        // On Windows: read the .version marker file
+        // We use a marker file instead of symlinks because Windows symlinks
+        // require admin privileges or developer mode
         current.join(".version")
             .exists()
             .then(|| std::fs::read_to_string(current.join(".version")).ok())
@@ -88,6 +138,20 @@ pub fn get_current_version(candidate: &str) -> Option<String> {
     }
 }
 
+/// Sets the current version for a candidate.
+///
+/// On Unix: Creates a symlink from `current` to the version directory.
+/// On Windows: Creates a `current` directory with a `.version` marker file.
+///
+/// # Arguments
+/// * `candidate` - Candidate name (e.g., "java")
+/// * `version` - Version to set as current
+///
+/// # Errors
+/// Returns error if:
+/// - Target version is not installed
+/// - Parent directory cannot be created
+/// - Symlink/marker creation fails
 pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn std::error::Error>> {
     let current = candidate_current(candidate)?;
     let target = candidate_dir(candidate, version)?;
