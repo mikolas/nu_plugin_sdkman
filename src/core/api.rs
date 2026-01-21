@@ -33,13 +33,9 @@ pub fn get_versions_list(candidate: &str, platform: &str, current: &str, install
     Ok(response.text()?)
 }
 
-pub fn get_versions(candidate: &str, platform: &str) -> Result<Vec<VersionInfo>, Box<dyn Error>> {
-    let url = format!("{}/candidates/{}/{}/versions/all", API_BASE, candidate, platform);
-    let response = reqwest::blocking::get(&url)?;
-    let text = response.text()?;
-    
-    let versions: Vec<VersionInfo> = text
-        .split(',')
+/// Parse versions from comma-separated text (extracted for testing)
+pub fn parse_versions_text(text: &str) -> Vec<VersionInfo> {
+    text.split(',')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|version| {
@@ -56,9 +52,14 @@ pub fn get_versions(candidate: &str, platform: &str) -> Result<Vec<VersionInfo>,
                 default: false,
             }
         })
-        .collect();
-    
-    Ok(versions)
+        .collect()
+}
+
+pub fn get_versions(candidate: &str, platform: &str) -> Result<Vec<VersionInfo>, Box<dyn Error>> {
+    let url = format!("{}/candidates/{}/{}/versions/all", API_BASE, candidate, platform);
+    let response = reqwest::blocking::get(&url)?;
+    let text = response.text()?;
+    Ok(parse_versions_text(&text))
 }
 
 pub fn get_default_version(candidate: &str, platform: &str) -> Result<String, Box<dyn Error>> {

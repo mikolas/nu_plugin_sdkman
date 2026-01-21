@@ -15,6 +15,12 @@ pub fn detect_platform() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 pub fn sdkman_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    // Check for test override first
+    if let Ok(dir) = std::env::var("SDKMAN_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+    
+    // Normal behavior
     dirs::home_dir()
         .map(|p| p.join(".sdkman"))
         .ok_or_else(|| "Could not find home directory".into())

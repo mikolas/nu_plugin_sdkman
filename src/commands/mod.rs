@@ -8,7 +8,7 @@ mod help;
 mod default;
 mod home;
 mod version;
-mod env;
+pub mod env;  // Public for testing
 mod update;
 mod flush;
 mod config;

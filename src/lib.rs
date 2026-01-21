@@ -1,6 +1,6 @@
-mod commands;
-mod core;
-mod utils;
+pub mod commands;
+pub mod core;
+pub mod utils;
 
 use nu_plugin::{Plugin, PluginCommand};
 use commands::{Sdk, List, Install, Uninstall, Use, Current, Upgrade, Default, Home, Version};

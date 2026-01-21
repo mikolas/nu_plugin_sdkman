@@ -163,6 +163,11 @@ fn parse_sdkmanrc(path: &std::path::Path) -> Result<HashMap<String, String>, Lab
     let content = fs::read_to_string(path)
         .map_err(|e| LabeledError::new(format!("Failed to read .sdkmanrc: {}", e)))?;
     
+    parse_sdkmanrc_content(&content)
+}
+
+/// Parse .sdkmanrc content (extracted for testing)
+pub fn parse_sdkmanrc_content(content: &str) -> Result<HashMap<String, String>, LabeledError> {
     let mut versions = HashMap::new();
     
     for line in content.lines() {
