@@ -88,8 +88,8 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
     fs::create_dir_all(local_sdkman.join("candidates"))
         .map_err(|e| LabeledError::new(format!("Failed to create .sdkman directory: {}", e)))?;
     
-    // Create activation script
-    let env_script = r#"# SDKMAN Local Environment
+    // Create Nushell activation script
+    let env_nu = r#"# SDKMAN Local Environment
 # Source this file to activate local SDK versions
 
 export-env {
@@ -109,12 +109,45 @@ export-env {
 }
 "#;
     
-    fs::write(local_sdkman.join("env.nu"), env_script)
+    fs::write(local_sdkman.join("env.nu"), env_nu)
         .map_err(|e| LabeledError::new(format!("Failed to create env.nu: {}", e)))?;
+    
+    // Create bash/zsh activation script
+    let env_sh = r#"# SDKMAN Local Environment
+# Source this file: source .sdkman/env.sh
+
+# Add local SDK bins to PATH
+for candidate_bin in .sdkman/candidates/*/current/bin; do
+    if [ -d "$candidate_bin" ]; then
+        export PATH="$candidate_bin:$PATH"
+    fi
+done
+"#;
+    
+    fs::write(local_sdkman.join("env.sh"), env_sh)
+        .map_err(|e| LabeledError::new(format!("Failed to create env.sh: {}", e)))?;
+    
+    // Create fish shell activation script
+    let env_fish = r#"# SDKMAN Local Environment
+# Source this file: source .sdkman/env.fish
+
+# Add local SDK bins to PATH
+for candidate_bin in .sdkman/candidates/*/current/bin
+    if test -d $candidate_bin
+        set -gx PATH $candidate_bin $PATH
+    end
+end
+"#;
+    
+    fs::write(local_sdkman.join("env.fish"), env_fish)
+        .map_err(|e| LabeledError::new(format!("Failed to create env.fish: {}", e)))?;
     
     let message = format!(
         "Created local SDKMAN environment in {}\n\n\
-        To activate:\n  source .sdkman/env.nu\n\n\
+        To activate:\n  \
+        Nushell: source .sdkman/env.nu\n  \
+        Bash/Zsh: source .sdkman/env.sh\n  \
+        Fish: source .sdkman/env.fish\n\n\
         To install SDKs locally:\n  source .sdkman/env.nu\n  sdk env install\n\n\
         Note: SDKs are installed globally but symlinked locally for isolation.",
         current_dir.display()
@@ -138,6 +171,7 @@ fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, Labele
     
     let versions = parse_sdkmanrc(&sdkmanrc)?;
     let mut results = Vec::new();
+    let mut errors = Vec::new();
     let platform = env::detect_platform()
         .map_err(|e| LabeledError::new(e.to_string()))?;
     
@@ -148,23 +182,37 @@ fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, Labele
         if env::is_installed(&candidate, &version) {
             results.push(format!("{} {} already installed", candidate, version));
         } else {
-            install::install_candidate(&candidate, &version, &platform)
-                .map_err(|e| LabeledError::new(format!("Failed to install {} {}: {}", candidate, version, e)))?;
-            results.push(format!("Installed {} {}", candidate, version));
+            match install::install_candidate(&candidate, &version, &platform) {
+                Ok(_) => results.push(format!("Installed {} {}", candidate, version)),
+                Err(e) => {
+                    errors.push(format!("Failed to install {} {}: {}", candidate, version, e));
+                    continue; // Skip setting current version if install failed
+                }
+            }
         }
         
         // Set current version (local or global depending on mode)
         if is_local {
-            env::set_local_current_version(&candidate, &version)
-                .map_err(|e| LabeledError::new(format!("Failed to set local {}: {}", candidate, e)))?;
-            results.push(format!("Linked {} {} locally", candidate, version));
+            match env::set_local_current_version(&candidate, &version) {
+                Ok(_) => results.push(format!("Linked {} {} locally", candidate, version)),
+                Err(e) => errors.push(format!("Failed to link {} {}: {}", candidate, version, e)),
+            }
         } else {
-            env::set_current_version(&candidate, &version)
-                .map_err(|e| LabeledError::new(format!("Failed to set {}: {}", candidate, e)))?;
+            match env::set_current_version(&candidate, &version) {
+                Ok(_) => {},
+                Err(e) => errors.push(format!("Failed to set {} {}: {}", candidate, version, e)),
+            }
         }
     }
     
-    Ok(Value::string(results.join("\n"), call.head).into_pipeline_data())
+    // Combine results and errors
+    let mut output = results.join("\n");
+    if !errors.is_empty() {
+        output.push_str("\n\nErrors:\n");
+        output.push_str(&errors.join("\n"));
+    }
+    
+    Ok(Value::string(output, call.head).into_pipeline_data())
 }
 
 fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
