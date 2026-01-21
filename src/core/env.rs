@@ -183,3 +183,69 @@ pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn
     
     Ok(())
 }
+
+/// Checks if current directory has a local SDKMAN environment.
+pub fn is_local_env() -> bool {
+    std::env::current_dir()
+        .ok()
+        .map(|p| p.join(".sdkman").exists())
+        .unwrap_or(false)
+}
+
+/// Returns the local SDKMAN directory path if it exists.
+pub fn local_sdkman_dir() -> Option<PathBuf> {
+    std::env::current_dir()
+        .ok()
+        .map(|p| p.join(".sdkman"))
+        .filter(|p| p.exists())
+}
+
+/// Sets the current version in a local environment.
+///
+/// Creates a symlink in `.sdkman/candidates/<candidate>/current` that points
+/// to the global installation at `~/.sdkman/candidates/<candidate>/<version>`.
+///
+/// # Arguments
+/// * `candidate` - Candidate name (e.g., "java")
+/// * `version` - Version to set as current
+///
+/// # Errors
+/// Returns error if:
+/// - Local .sdkman directory doesn't exist
+/// - Target version is not installed globally
+/// - Symlink creation fails
+pub fn set_local_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let local_dir = local_sdkman_dir()
+        .ok_or("No local .sdkman directory found")?;
+    
+    // Target points to global installation
+    let global_target = candidate_dir(candidate, version)?;
+    if !global_target.exists() {
+        return Err(format!("{} {} is not installed", candidate, version).into());
+    }
+    
+    // Current symlink is in local directory
+    let local_current = local_dir.join("candidates").join(candidate).join("current");
+    
+    // Ensure parent directory exists
+    if let Some(parent) = local_current.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    
+    if local_current.exists() {
+        std::fs::remove_dir_all(&local_current)?;
+    }
+    
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&global_target, &local_current)?;
+    }
+    
+    #[cfg(windows)]
+    {
+        std::fs::create_dir_all(&local_current)?;
+        std::fs::write(local_current.join(".version"), version)?;
+    }
+    
+    Ok(())
+}

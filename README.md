@@ -185,11 +185,53 @@ sdk h java 17               # Alias for home
 
 ### Environment Files (.sdkmanrc)
 
+**Global Mode (default):**
 ```nushell
 sdk env init                # Create .sdkmanrc in current directory
 sdk env install             # Install all SDKs from .sdkmanrc
 sdk env                     # Load and use versions from .sdkmanrc
 sdk env clear               # Clear environment
+```
+
+**Local Mode (project isolation):**
+```nushell
+sdk env init                # Create .sdkmanrc AND .sdkman/ directory
+source .sdkman/env.nu       # Activate local environment
+sdk env install             # Install to global, symlink locally
+sdk env                     # Use local versions
+sdk env clear               # Clear local symlinks only
+```
+
+**How Local Mode Works:**
+- `sdk env init` creates `.sdkman/` directory with `env.nu` activation script
+- SDKs are installed once to `~/.sdkman/` (shared across projects)
+- Local symlinks in `.sdkman/candidates/*/current` point to global installations
+- Each project has its own `current` pointers without duplicating SDK files
+- Activate with `source .sdkman/env.nu` to prepend local paths to PATH
+
+**Benefits:**
+- ✅ True project isolation - different projects use different versions
+- ✅ No disk space waste - SDKs installed once, symlinked per-project
+- ✅ Fast setup - only creates symlinks, no downloads
+- ✅ Explicit activation - like Python venv or Node nvm
+
+**Example:**
+```nushell
+# Project A needs Java 17
+cd ~/project-a
+sdk env init
+source .sdkman/env.nu
+sdk use java 17
+java --version              # Java 17
+
+# Project B needs Java 21 (in another terminal)
+cd ~/project-b
+sdk env init
+source .sdkman/env.nu
+sdk use java 21
+java --version              # Java 21
+
+# Both use the same SDK files, just different symlinks!
 ```
 
 ### Maintenance
