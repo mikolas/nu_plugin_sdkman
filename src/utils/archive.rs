@@ -12,17 +12,7 @@ pub fn extract_tar_gz(archive: &Path, destination: &Path) -> Result<(), Box<dyn 
     
     std::fs::create_dir_all(destination)?;
     
-    for entry in archive.entries()? {
-        let mut entry = entry?;
-        let path = entry.path()?;
-        
-        let components: Vec<_> = path.components().collect();
-        if components.len() > 1 {
-            let stripped: std::path::PathBuf = components[1..].iter().collect();
-            let dest = destination.join(stripped);
-            entry.unpack(&dest)?;
-        }
-    }
+    archive.unpack(destination)?;
     
     Ok(())
 }
@@ -37,20 +27,16 @@ pub fn extract_zip(archive: &Path, destination: &Path) -> Result<(), Box<dyn Err
         let mut file = archive.by_index(i)?;
         let path = file.mangled_name();
         
-        let components: Vec<_> = path.components().collect();
-        if components.len() > 1 {
-            let stripped: std::path::PathBuf = components[1..].iter().collect();
-            let dest = destination.join(stripped);
-            
-            if file.is_dir() {
-                std::fs::create_dir_all(&dest)?;
-            } else {
-                if let Some(parent) = dest.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                let mut outfile = File::create(&dest)?;
-                std::io::copy(&mut file, &mut outfile)?;
+        let dest = destination.join(path);
+        
+        if file.is_dir() {
+            std::fs::create_dir_all(&dest)?;
+        } else {
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent)?;
             }
+            let mut outfile = File::create(&dest)?;
+            std::io::copy(&mut file, &mut outfile)?;
         }
     }
     

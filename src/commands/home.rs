@@ -40,7 +40,8 @@ impl PluginCommand for Home {
             )));
         }
         
-        let home_dir = env::candidate_dir(&candidate, &version);
+        let home_dir = env::candidate_dir(&candidate, &version)
+            .map_err(|e| LabeledError::new(e.to_string()))?;
         
         Ok(Value::string(
             home_dir.to_string_lossy().to_string(),

@@ -1,7 +1,7 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
 use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
-use crate::core::{api, env};
+use crate::core::{env, install};
 use std::fs;
 use std::collections::HashMap;
 
@@ -56,7 +56,9 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
     content.push_str("# Add key=value pairs of SDKs to use below\n");
     
     // Add current versions if any
-    let candidates_dir = env::candidates_dir();
+    let candidates_dir = env::candidates_dir()
+        .map_err(|e| LabeledError::new(e.to_string()))?;
+        
     if candidates_dir.exists() {
         if let Ok(entries) = fs::read_dir(&candidates_dir) {
             for entry in entries.filter_map(|e| e.ok()) {
@@ -90,13 +92,20 @@ fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, Labele
     
     let versions = parse_sdkmanrc(&sdkmanrc)?;
     let mut results = Vec::new();
+    let platform = env::detect_platform()
+        .map_err(|e| LabeledError::new(e.to_string()))?;
     
     for (candidate, version) in versions {
         if env::is_installed(&candidate, &version) {
             results.push(format!("{} {} already installed", candidate, version));
         } else {
-            results.push(format!("Would install {} {} (install command not called from env)", candidate, version));
+            install::install_candidate(&candidate, &version, &platform)
+                .map_err(|e| LabeledError::new(format!("Failed to install {} {}: {}", candidate, version, e)))?;
+            results.push(format!("Installed {} {}", candidate, version));
         }
+        
+        env::set_current_version(&candidate, &version)
+            .map_err(|e| LabeledError::new(format!("Failed to set {}: {}", candidate, e)))?;
     }
     
     Ok(Value::string(results.join("\n"), call.head).into_pipeline_data())
@@ -140,8 +149,10 @@ fn env_clear(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledE
     
     for (candidate, _) in versions {
         let current_link = env::candidate_current(&candidate);
-        if current_link.exists() {
-            fs::remove_dir_all(&current_link).ok();
+        if let Ok(path) = current_link {
+             if path.exists() {
+                 fs::remove_dir_all(&path).ok();
+             }
         }
     }
     

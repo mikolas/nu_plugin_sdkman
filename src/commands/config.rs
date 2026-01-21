@@ -29,7 +29,9 @@ impl PluginCommand for Config {
         call: &EvaluatedCall,
         _input: nu_protocol::PipelineData,
     ) -> Result<nu_protocol::PipelineData, LabeledError> {
-        let config_file = env::sdkman_dir().join("etc").join("config");
+        let config_file = env::sdkman_dir()
+            .map_err(|e| LabeledError::new(e.to_string()))?
+            .join("etc").join("config");
         
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
         

@@ -32,7 +32,8 @@ impl PluginCommand for Flush {
     ) -> Result<nu_protocol::PipelineData, LabeledError> {
         let target: Option<String> = call.opt(0)?;
         
-        let sdkman_dir = env::sdkman_dir();
+        let sdkman_dir = env::sdkman_dir()
+            .map_err(|e| LabeledError::new(e.to_string()))?;
         let mut flushed = Vec::new();
         
         match target.as_deref() {

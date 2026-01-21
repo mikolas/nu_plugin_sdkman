@@ -56,7 +56,8 @@ fn show_current(candidate: &str, call: &EvaluatedCall) -> Result<nu_protocol::Pi
 }
 
 fn show_all_current(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let candidates_dir = env::candidates_dir();
+    let candidates_dir = env::candidates_dir()
+        .map_err(|e| LabeledError::new(e.to_string()))?;
     
     if !candidates_dir.exists() {
         return Ok(Value::list(vec![], call.head).into_pipeline_data());

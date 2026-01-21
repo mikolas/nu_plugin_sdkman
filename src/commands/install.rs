@@ -1,8 +1,7 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
 use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
-use crate::core::{api, env};
-use crate::utils::{download, archive};
+use crate::core::{api, env, install};
 
 pub struct Install;
 
@@ -39,7 +38,8 @@ impl PluginCommand for Install {
         api::validate_candidate(&candidate)
             .map_err(|e| LabeledError::new(e.to_string()))?;
         
-        let platform = env::detect_platform();
+        let platform = env::detect_platform()
+            .map_err(|e| LabeledError::new(e.to_string()))?;
         
         let install_version = if let Some(v) = version {
             v
@@ -56,9 +56,11 @@ impl PluginCommand for Install {
         }
         
         if let Some(local) = local_path {
-            install_from_local(&candidate, &install_version, &local)?;
+            install::install_local(&candidate, &install_version, std::path::Path::new(&local))
+                .map_err(|e| LabeledError::new(format!("Local install failed: {}", e)))?;
         } else {
-            install_from_remote(&candidate, &install_version, &platform)?;
+            install::install_candidate(&candidate, &install_version, &platform)
+                .map_err(|e| LabeledError::new(format!("Install failed: {}", e)))?;
         }
         
         env::set_current_version(&candidate, &install_version)
@@ -69,40 +71,4 @@ impl PluginCommand for Install {
             call.head,
         ).into_pipeline_data())
     }
-}
-
-fn install_from_local(candidate: &str, version: &str, local_path: &str) -> Result<(), LabeledError> {
-    let local_file = std::path::Path::new(local_path);
-    
-    if !local_file.exists() {
-        return Err(LabeledError::new(format!("Local file not found: {}", local_path)));
-    }
-    
-    let install_dir = env::candidate_dir(candidate, version);
-    archive::extract(local_file, &install_dir)
-        .map_err(|e| LabeledError::new(format!("Extraction failed: {}", e)))?;
-    
-    Ok(())
-}
-
-fn install_from_remote(candidate: &str, version: &str, platform: &str) -> Result<(), LabeledError> {
-    let download_url = api::get_download_url(candidate, version, platform);
-    
-    let temp_dir = std::env::temp_dir().join(format!("sdkman-{}-{}", candidate, version));
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| LabeledError::new(format!("Failed to create temp dir: {}", e)))?;
-    
-    let archive_ext = if cfg!(windows) { ".zip" } else { ".tar.gz" };
-    let archive_file = temp_dir.join(format!("{}-{}{}", candidate, version, archive_ext));
-    
-    download::download_file(&download_url, &archive_file)
-        .map_err(|e| LabeledError::new(format!("Download failed: {}", e)))?;
-    
-    let install_dir = env::candidate_dir(candidate, version);
-    archive::extract(&archive_file, &install_dir)
-        .map_err(|e| LabeledError::new(format!("Extraction failed: {}", e)))?;
-    
-    std::fs::remove_dir_all(&temp_dir).ok();
-    
-    Ok(())
 }

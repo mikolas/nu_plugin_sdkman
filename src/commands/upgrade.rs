@@ -1,8 +1,7 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
 use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
-use crate::core::{api, env};
-use crate::utils::{download, archive};
+use crate::core::{api, env, install};
 
 pub struct Upgrade;
 
@@ -47,7 +46,8 @@ fn upgrade_candidate(candidate: &str, call: &EvaluatedCall) -> Result<nu_protoco
         return Err(LabeledError::new(format!("No {} version currently in use", candidate)));
     }
     
-    let platform = env::detect_platform();
+    let platform = env::detect_platform()
+        .map_err(|e| LabeledError::new(e.to_string()))?;
     let latest = api::get_default_version(candidate, &platform)
         .map_err(|e| LabeledError::new(format!("Failed to get latest version: {}", e)))?;
     
@@ -70,23 +70,8 @@ fn upgrade_candidate(candidate: &str, call: &EvaluatedCall) -> Result<nu_protoco
         ).into_pipeline_data());
     }
     
-    let download_url = api::get_download_url(candidate, &latest, &platform);
-    
-    let temp_dir = std::env::temp_dir().join(format!("sdkman-{}-{}", candidate, latest));
-    std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| LabeledError::new(format!("Failed to create temp dir: {}", e)))?;
-    
-    let archive_ext = if cfg!(windows) { ".zip" } else { ".tar.gz" };
-    let archive_file = temp_dir.join(format!("{}-{}{}", candidate, latest, archive_ext));
-    
-    download::download_file(&download_url, &archive_file)
-        .map_err(|e| LabeledError::new(format!("Download failed: {}", e)))?;
-    
-    let install_dir = env::candidate_dir(candidate, &latest);
-    archive::extract(&archive_file, &install_dir)
-        .map_err(|e| LabeledError::new(format!("Extraction failed: {}", e)))?;
-    
-    std::fs::remove_dir_all(&temp_dir).ok();
+    install::install_candidate(candidate, &latest, &platform)
+        .map_err(|e| LabeledError::new(format!("Upgrade failed: {}", e)))?;
     
     env::set_current_version(candidate, &latest)
         .map_err(|e| LabeledError::new(format!("Failed to set current version: {}", e)))?;
@@ -98,7 +83,8 @@ fn upgrade_candidate(candidate: &str, call: &EvaluatedCall) -> Result<nu_protoco
 }
 
 fn upgrade_all(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let candidates_dir = env::candidates_dir();
+    let candidates_dir = env::candidates_dir()
+        .map_err(|e| LabeledError::new(e.to_string()))?;
     
     if !candidates_dir.exists() {
         return Ok(Value::string("No candidates installed", call.head).into_pipeline_data());

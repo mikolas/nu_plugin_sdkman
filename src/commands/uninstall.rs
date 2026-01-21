@@ -40,14 +40,16 @@ impl PluginCommand for Uninstall {
             )));
         }
         
-        let install_dir = env::candidate_dir(&candidate, &version);
+        let install_dir = env::candidate_dir(&candidate, &version)
+            .map_err(|e| LabeledError::new(e.to_string()))?;
         std::fs::remove_dir_all(&install_dir)
             .map_err(|e| LabeledError::new(format!("Failed to remove installation: {}", e)))?;
         
         let current = env::get_current_version(&candidate);
         if current.as_ref() == Some(&version) {
-            let current_link = env::candidate_current(&candidate);
-            std::fs::remove_dir_all(&current_link).ok();
+            if let Ok(current_link) = env::candidate_current(&candidate) {
+                std::fs::remove_dir_all(&current_link).ok();
+            }
         }
         
         Ok(Value::string(

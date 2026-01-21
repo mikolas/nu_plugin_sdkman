@@ -1,44 +1,47 @@
 use std::path::PathBuf;
 
-pub fn detect_platform() -> String {
+pub fn detect_platform() -> Result<String, Box<dyn std::error::Error>> {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     
     match (os, arch) {
-        ("linux", "x86_64") => "linuxx64",
-        ("linux", "aarch64") => "linuxarm64",
-        ("macos", "x86_64") => "darwinx64",
-        ("macos", "aarch64") => "darwinarm64",
-        ("windows", "x86_64") => "windowsx64",
-        _ => panic!("Unsupported platform: {} {}", os, arch),
+        ("linux", "x86_64") => Ok("linuxx64".to_string()),
+        ("linux", "aarch64") => Ok("linuxarm64".to_string()),
+        ("macos", "x86_64") => Ok("darwinx64".to_string()),
+        ("macos", "aarch64") => Ok("darwinarm64".to_string()),
+        ("windows", "x86_64") => Ok("windowsx64".to_string()),
+        _ => Err(format!("Unsupported platform: {} {}", os, arch).into()),
     }
-    .to_string()
 }
 
-pub fn sdkman_dir() -> PathBuf {
+pub fn sdkman_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     dirs::home_dir()
-        .expect("Could not find home directory")
-        .join(".sdkman")
+        .map(|p| p.join(".sdkman"))
+        .ok_or_else(|| "Could not find home directory".into())
 }
 
-pub fn candidates_dir() -> PathBuf {
-    sdkman_dir().join("candidates")
+pub fn candidates_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    sdkman_dir().map(|p| p.join("candidates"))
 }
 
-pub fn candidate_dir(candidate: &str, version: &str) -> PathBuf {
-    candidates_dir().join(candidate).join(version)
+pub fn candidate_dir(candidate: &str, version: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    candidates_dir().map(|p| p.join(candidate).join(version))
 }
 
-pub fn candidate_current(candidate: &str) -> PathBuf {
-    candidates_dir().join(candidate).join("current")
+pub fn candidate_current(candidate: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    candidates_dir().map(|p| p.join(candidate).join("current"))
 }
 
 pub fn is_installed(candidate: &str, version: &str) -> bool {
-    candidate_dir(candidate, version).exists()
+    candidate_dir(candidate, version).map(|p| p.exists()).unwrap_or(false)
 }
 
 pub fn get_installed_versions(candidate: &str) -> Vec<String> {
-    let base = candidates_dir().join(candidate);
+    let base = match candidates_dir() {
+        Ok(dir) => dir.join(candidate),
+        Err(_) => return vec![],
+    };
+
     if !base.exists() {
         return vec![];
     }
@@ -57,7 +60,7 @@ pub fn get_installed_versions(candidate: &str) -> Vec<String> {
 }
 
 pub fn get_current_version(candidate: &str) -> Option<String> {
-    let current = candidate_current(candidate);
+    let current = candidate_current(candidate).ok()?;
     if !current.exists() {
         return None;
     }
@@ -79,9 +82,9 @@ pub fn get_current_version(candidate: &str) -> Option<String> {
     }
 }
 
-pub fn set_current_version(candidate: &str, version: &str) -> std::io::Result<()> {
-    let current = candidate_current(candidate);
-    let target = candidate_dir(candidate, version);
+pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let current = candidate_current(candidate)?;
+    let target = candidate_dir(candidate, version)?;
     
     if current.exists() {
         std::fs::remove_dir_all(&current)?;
