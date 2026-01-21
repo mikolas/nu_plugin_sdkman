@@ -72,3 +72,23 @@ echo "To complete installation, run in Nushell:"
 echo "  plugin add ${INSTALL_DIR}/${BINARY_NAME}"
 echo ""
 echo "Then restart Nushell and run: sdk"
+echo ""
+
+# Create SDKMAN init script for Nushell
+mkdir -p "${HOME}/.sdkman/bin"
+cat > "${HOME}/.sdkman/bin/sdkman-init.nu" << 'EOF'
+# SDKMAN Nushell initialization
+$env.PATH = ($env.PATH | prepend (
+    ls ~/.sdkman/candidates/*/current/bin 
+    | get name
+))
+EOF
+
+echo "✓ Created ~/.sdkman/bin/sdkman-init.nu"
+echo ""
+echo "Add these lines to your ~/.config/nushell/config.nu:"
+echo ""
+echo '# SDKMAN'
+echo '$env.SDKMAN_DIR = ($env.HOME | path join ".sdkman")'
+echo 'source ~/.sdkman/bin/sdkman-init.nu'
+echo ""

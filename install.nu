@@ -65,3 +65,22 @@ try {
 }
 
 print "\nInstallation complete! Restart Nushell and run: sdk"
+
+# Create SDKMAN init script
+print "\nCreating SDKMAN initialization script..."
+mkdir ~/.sdkman/bin
+"# SDKMAN Nushell initialization
+$env.PATH = ($env.PATH | prepend (
+    ls ~/.sdkman/candidates/*/current/bin 
+    | get name
+))
+" | save -f ~/.sdkman/bin/sdkman-init.nu
+
+print "✓ Created ~/.sdkman/bin/sdkman-init.nu"
+print ""
+print "Add these lines to your ~/.config/nushell/config.nu:"
+print ""
+print "# SDKMAN"
+print '$env.SDKMAN_DIR = ($env.HOME | path join ".sdkman")'
+print "source ~/.sdkman/bin/sdkman-init.nu"
+print ""

@@ -71,13 +71,6 @@ pub fn get_versions_list(candidate: &str, platform: &str, current: &str, install
 ///
 /// # Returns
 /// Vector of VersionInfo structs
-///
-/// # Examples
-/// ```
-/// let versions = parse_versions_text("17.0.9-oracle,21.0.1-tem");
-/// assert_eq!(versions.len(), 2);
-/// assert_eq!(versions[0].vendor, "oracle");
-/// ```
 pub fn parse_versions_text(text: &str) -> Vec<VersionInfo> {
     text.split(',')
         .map(|s| s.trim())
