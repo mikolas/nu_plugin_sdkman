@@ -186,16 +186,20 @@ pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn
 
 /// Checks if current directory has a local SDKMAN environment.
 pub fn is_local_env() -> bool {
-    std::env::current_dir()
+    std::env::var("PWD")
         .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
         .map(|p| p.join(".sdkman").exists())
         .unwrap_or(false)
 }
 
 /// Returns the local SDKMAN directory path if it exists.
 pub fn local_sdkman_dir() -> Option<PathBuf> {
-    std::env::current_dir()
+    std::env::var("PWD")
         .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
         .map(|p| p.join(".sdkman"))
         .filter(|p| p.exists())
 }

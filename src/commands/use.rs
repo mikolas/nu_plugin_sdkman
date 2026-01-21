@@ -40,12 +40,16 @@ impl PluginCommand for Use {
             )));
         }
         
-        env::set_current_version(&candidate, &version)
-            .map_err(|e| LabeledError::new(format!("Failed to set current version: {}", e)))?;
+        let message = if env::is_local_env() {
+            env::set_local_current_version(&candidate, &version)
+                .map_err(|e| LabeledError::new(format!("Failed to set local current version: {}", e)))?;
+            format!("Using {} {} (local)", candidate, version)
+        } else {
+            env::set_current_version(&candidate, &version)
+                .map_err(|e| LabeledError::new(format!("Failed to set current version: {}", e)))?;
+            format!("Using {} {}", candidate, version)
+        };
         
-        Ok(Value::string(
-            format!("Using {} {}", candidate, version),
-            call.head,
-        ).into_pipeline_data())
+        Ok(Value::string(message, call.head).into_pipeline_data())
     }
 }
