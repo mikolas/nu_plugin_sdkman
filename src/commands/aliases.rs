@@ -1,7 +1,7 @@
 // Command aliases matching bash SDKMAN
 
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
-use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, IntoPipelineData};
+use nu_protocol::{Category, LabeledError, Signature, SyntaxShape};
 use crate::SdkmanPlugin;
 use crate::commands::{Install, Uninstall, List, Use, Current, Upgrade, Default, Home, Version};
 

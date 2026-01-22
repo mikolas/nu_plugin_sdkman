@@ -1,6 +1,7 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
 use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
+use crate::constants;
 use crate::core::{env, install};
 use std::fs;
 use std::collections::HashMap;
@@ -45,17 +46,17 @@ impl PluginCommand for Env {
 
 fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
     // Get current directory from Nushell's environment, not the plugin process
-    let current_dir = std::env::var("PWD")
+    let current_dir = std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
         .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
     
-    let sdkmanrc = current_dir.join(".sdkmanrc");
-    let local_sdkman = current_dir.join(".sdkman");
+    let sdkmanrc = current_dir.join(constants::SDKMAN_RC_FILE);
+    let local_sdkman = current_dir.join(constants::SDKMAN_DIR_NAME);
     
     if sdkmanrc.exists() {
-        return Err(LabeledError::new(".sdkmanrc already exists in current directory"));
+        return Err(LabeledError::new(format!("{} already exists in current directory", constants::SDKMAN_RC_FILE)));
     }
     
     // Create .sdkmanrc
@@ -71,7 +72,7 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
             for entry in entries.filter_map(|e| e.ok()) {
                 if entry.path().is_dir() {
                     let candidate = entry.file_name().to_string_lossy().to_string();
-                    if candidate != "current" {
+                    if candidate != constants::CURRENT_LINK {
                         if let Some(version) = env::get_current_version(&candidate) {
                             content.push_str(&format!("{}={}\n", candidate, version));
                         }
@@ -85,7 +86,7 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
         .map_err(|e| LabeledError::new(format!("Failed to create .sdkmanrc: {}", e)))?;
     
     // Create .sdkman directory structure
-    fs::create_dir_all(local_sdkman.join("candidates"))
+    fs::create_dir_all(local_sdkman.join(constants::CANDIDATES_DIR))
         .map_err(|e| LabeledError::new(format!("Failed to create .sdkman directory: {}", e)))?;
     
     // Create Nushell activation script
@@ -157,13 +158,13 @@ end
 }
 
 fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let current_dir = std::env::var("PWD")
+    let current_dir = std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
         .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
     
-    let sdkmanrc = current_dir.join(".sdkmanrc");
+    let sdkmanrc = current_dir.join(constants::SDKMAN_RC_FILE);
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory. Run 'sdk env init' to create it."));
@@ -216,13 +217,13 @@ fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, Labele
 }
 
 fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let current_dir = std::env::var("PWD")
+    let current_dir = std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
         .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
     
-    let sdkmanrc = current_dir.join(".sdkmanrc");
+    let sdkmanrc = current_dir.join(constants::SDKMAN_RC_FILE);
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory"));
@@ -252,13 +253,13 @@ fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
 }
 
 fn env_clear(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let current_dir = std::env::var("PWD")
+    let current_dir = std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
         .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
     
-    let sdkmanrc = current_dir.join(".sdkmanrc");
+    let sdkmanrc = current_dir.join(constants::SDKMAN_RC_FILE);
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory"));
@@ -272,7 +273,7 @@ fn env_clear(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledE
         if is_local {
             // Remove local symlinks only
             if let Some(local_dir) = env::local_sdkman_dir() {
-                let local_current = local_dir.join("candidates").join(&candidate).join("current");
+                let local_current = local_dir.join(constants::CANDIDATES_DIR).join(&candidate).join(constants::CURRENT_LINK);
                 if local_current.exists() {
                     fs::remove_dir_all(&local_current).ok();
                 }
