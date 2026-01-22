@@ -44,18 +44,25 @@ impl PluginCommand for Env {
 }
 
 fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let sdkmanrc = std::env::current_dir()
-        .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?
-        .join(".sdkmanrc");
+    // Get current directory from Nushell's environment, not the plugin process
+    let current_dir = std::env::var("PWD")
+        .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
+        .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
+    
+    let sdkmanrc = current_dir.join(".sdkmanrc");
+    let local_sdkman = current_dir.join(".sdkman");
     
     if sdkmanrc.exists() {
         return Err(LabeledError::new(".sdkmanrc already exists in current directory"));
     }
     
-    let mut content = String::from("# Enable auto-env through the sdkman_auto_env config\n");
+    // Create .sdkmanrc
+    let mut content = String::from("# SDKMAN local environment\n");
     content.push_str("# Add key=value pairs of SDKs to use below\n");
     
-    // Add current versions if any
+    // Add current global versions if any
     let candidates_dir = env::candidates_dir()
         .map_err(|e| LabeledError::new(e.to_string()))?;
         
@@ -64,8 +71,10 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
             for entry in entries.filter_map(|e| e.ok()) {
                 if entry.path().is_dir() {
                     let candidate = entry.file_name().to_string_lossy().to_string();
-                    if let Some(version) = env::get_current_version(&candidate) {
-                        content.push_str(&format!("{}={}\n", candidate, version));
+                    if candidate != "current" {
+                        if let Some(version) = env::get_current_version(&candidate) {
+                            content.push_str(&format!("{}={}\n", candidate, version));
+                        }
                     }
                 }
             }
@@ -75,16 +84,86 @@ fn env_init(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
     fs::write(&sdkmanrc, content)
         .map_err(|e| LabeledError::new(format!("Failed to create .sdkmanrc: {}", e)))?;
     
-    Ok(Value::string(
-        format!("Created .sdkmanrc in {}", sdkmanrc.parent().unwrap().display()),
-        call.head,
-    ).into_pipeline_data())
+    // Create .sdkman directory structure
+    fs::create_dir_all(local_sdkman.join("candidates"))
+        .map_err(|e| LabeledError::new(format!("Failed to create .sdkman directory: {}", e)))?;
+    
+    // Create Nushell activation script
+    let env_nu = r#"# SDKMAN Local Environment
+# Source this file to activate local SDK versions
+
+export-env {
+    let local_bins = (
+        try {
+            ls .sdkman/candidates/*/current/bin 
+            | get name 
+            | path expand
+        } catch {
+            []
+        }
+    )
+    
+    if ($local_bins | length) > 0 {
+        $env.PATH = ($env.PATH | prepend $local_bins)
+    }
+}
+"#;
+    
+    fs::write(local_sdkman.join("env.nu"), env_nu)
+        .map_err(|e| LabeledError::new(format!("Failed to create env.nu: {}", e)))?;
+    
+    // Create bash/zsh activation script
+    let env_sh = r#"# SDKMAN Local Environment
+# Source this file: source .sdkman/env.sh
+
+# Add local SDK bins to PATH
+for candidate_bin in .sdkman/candidates/*/current/bin; do
+    if [ -d "$candidate_bin" ]; then
+        export PATH="$candidate_bin:$PATH"
+    fi
+done
+"#;
+    
+    fs::write(local_sdkman.join("env.sh"), env_sh)
+        .map_err(|e| LabeledError::new(format!("Failed to create env.sh: {}", e)))?;
+    
+    // Create fish shell activation script
+    let env_fish = r#"# SDKMAN Local Environment
+# Source this file: source .sdkman/env.fish
+
+# Add local SDK bins to PATH
+for candidate_bin in .sdkman/candidates/*/current/bin
+    if test -d $candidate_bin
+        set -gx PATH $candidate_bin $PATH
+    end
+end
+"#;
+    
+    fs::write(local_sdkman.join("env.fish"), env_fish)
+        .map_err(|e| LabeledError::new(format!("Failed to create env.fish: {}", e)))?;
+    
+    let message = format!(
+        "Created local SDKMAN environment in {}\n\n\
+        To activate:\n  \
+        Nushell: source .sdkman/env.nu\n  \
+        Bash/Zsh: source .sdkman/env.sh\n  \
+        Fish: source .sdkman/env.fish\n\n\
+        To install SDKs locally:\n  source .sdkman/env.nu\n  sdk env install\n\n\
+        Note: SDKs are installed globally but symlinked locally for isolation.",
+        current_dir.display()
+    );
+    
+    Ok(Value::string(message, call.head).into_pipeline_data())
 }
 
 fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let sdkmanrc = std::env::current_dir()
-        .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?
-        .join(".sdkmanrc");
+    let current_dir = std::env::var("PWD")
+        .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
+        .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
+    
+    let sdkmanrc = current_dir.join(".sdkmanrc");
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory. Run 'sdk env init' to create it."));
@@ -92,29 +171,58 @@ fn env_install(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, Labele
     
     let versions = parse_sdkmanrc(&sdkmanrc)?;
     let mut results = Vec::new();
+    let mut errors = Vec::new();
     let platform = env::detect_platform()
         .map_err(|e| LabeledError::new(e.to_string()))?;
     
+    let is_local = env::is_local_env();
+    
     for (candidate, version) in versions {
+        // Always install to global location
         if env::is_installed(&candidate, &version) {
             results.push(format!("{} {} already installed", candidate, version));
         } else {
-            install::install_candidate(&candidate, &version, &platform)
-                .map_err(|e| LabeledError::new(format!("Failed to install {} {}: {}", candidate, version, e)))?;
-            results.push(format!("Installed {} {}", candidate, version));
+            match install::install_candidate(&candidate, &version, &platform) {
+                Ok(_) => results.push(format!("Installed {} {}", candidate, version)),
+                Err(e) => {
+                    errors.push(format!("Failed to install {} {}: {}", candidate, version, e));
+                    continue; // Skip setting current version if install failed
+                }
+            }
         }
         
-        env::set_current_version(&candidate, &version)
-            .map_err(|e| LabeledError::new(format!("Failed to set {}: {}", candidate, e)))?;
+        // Set current version (local or global depending on mode)
+        if is_local {
+            match env::set_local_current_version(&candidate, &version) {
+                Ok(_) => results.push(format!("Linked {} {} locally", candidate, version)),
+                Err(e) => errors.push(format!("Failed to link {} {}: {}", candidate, version, e)),
+            }
+        } else {
+            match env::set_current_version(&candidate, &version) {
+                Ok(_) => {},
+                Err(e) => errors.push(format!("Failed to set {} {}: {}", candidate, version, e)),
+            }
+        }
     }
     
-    Ok(Value::string(results.join("\n"), call.head).into_pipeline_data())
+    // Combine results and errors
+    let mut output = results.join("\n");
+    if !errors.is_empty() {
+        output.push_str("\n\nErrors:\n");
+        output.push_str(&errors.join("\n"));
+    }
+    
+    Ok(Value::string(output, call.head).into_pipeline_data())
 }
 
 fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let sdkmanrc = std::env::current_dir()
-        .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?
-        .join(".sdkmanrc");
+    let current_dir = std::env::var("PWD")
+        .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
+        .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
+    
+    let sdkmanrc = current_dir.join(".sdkmanrc");
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory"));
@@ -122,14 +230,21 @@ fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
     
     let versions = parse_sdkmanrc(&sdkmanrc)?;
     let mut results = Vec::new();
+    let is_local = env::is_local_env();
     
     for (candidate, version) in versions {
         if !env::is_installed(&candidate, &version) {
             results.push(format!("{} {} not installed", candidate, version));
         } else {
-            env::set_current_version(&candidate, &version)
-                .map_err(|e| LabeledError::new(format!("Failed to set {}: {}", candidate, e)))?;
-            results.push(format!("Using {} {}", candidate, version));
+            if is_local {
+                env::set_local_current_version(&candidate, &version)
+                    .map_err(|e| LabeledError::new(format!("Failed to set local {}: {}", candidate, e)))?;
+                results.push(format!("Using {} {} (local)", candidate, version));
+            } else {
+                env::set_current_version(&candidate, &version)
+                    .map_err(|e| LabeledError::new(format!("Failed to set {}: {}", candidate, e)))?;
+                results.push(format!("Using {} {}", candidate, version));
+            }
         }
     }
     
@@ -137,9 +252,13 @@ fn env_load(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledEr
 }
 
 fn env_clear(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledError> {
-    let sdkmanrc = std::env::current_dir()
-        .map_err(|e| LabeledError::new(format!("Failed to get current directory: {}", e)))?
-        .join(".sdkmanrc");
+    let current_dir = std::env::var("PWD")
+        .ok()
+        .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
+        .or_else(|| std::env::current_dir().ok())
+        .ok_or_else(|| LabeledError::new("Failed to get current directory"))?;
+    
+    let sdkmanrc = current_dir.join(".sdkmanrc");
     
     if !sdkmanrc.exists() {
         return Err(LabeledError::new("Could not find .sdkmanrc in current directory"));
@@ -147,16 +266,35 @@ fn env_clear(call: &EvaluatedCall) -> Result<nu_protocol::PipelineData, LabeledE
     
     let versions = parse_sdkmanrc(&sdkmanrc)?;
     
+    let is_local = env::is_local_env();
+    
     for (candidate, _) in versions {
-        let current_link = env::candidate_current(&candidate);
-        if let Ok(path) = current_link {
-             if path.exists() {
-                 fs::remove_dir_all(&path).ok();
-             }
+        if is_local {
+            // Remove local symlinks only
+            if let Some(local_dir) = env::local_sdkman_dir() {
+                let local_current = local_dir.join("candidates").join(&candidate).join("current");
+                if local_current.exists() {
+                    fs::remove_dir_all(&local_current).ok();
+                }
+            }
+        } else {
+            // Remove global symlinks
+            let current_link = env::candidate_current(&candidate);
+            if let Ok(path) = current_link {
+                 if path.exists() {
+                     fs::remove_dir_all(&path).ok();
+                 }
+            }
         }
     }
     
-    Ok(Value::string("Cleared environment", call.head).into_pipeline_data())
+    let message = if is_local {
+        "Cleared local environment (global installations unaffected)"
+    } else {
+        "Cleared environment"
+    };
+    
+    Ok(Value::string(message, call.head).into_pipeline_data())
 }
 
 fn parse_sdkmanrc(path: &std::path::Path) -> Result<HashMap<String, String>, LabeledError> {
