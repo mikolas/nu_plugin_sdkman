@@ -1,4 +1,5 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
+use crate::constants;
 use nu_protocol::{Category, LabeledError, Signature, SyntaxShape, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
 use crate::core::env;
@@ -37,14 +38,14 @@ impl PluginCommand for Flush {
         let mut flushed = Vec::new();
         
         match target.as_deref() {
-            Some("tmp") | Some("temp") => {
-                flush_dir(&sdkman_dir.join("tmp"), &mut flushed)?;
+            Some(constants::TMP_DIR) | Some("temp") => {
+                flush_dir(&sdkman_dir.join(constants::TMP_DIR), &mut flushed)?;
             }
-            Some("metadata") => {
-                flush_dir(&sdkman_dir.join("var").join("metadata"), &mut flushed)?;
+            Some(constants::METADATA_DIR) => {
+                flush_dir(&sdkman_dir.join(constants::VAR_DIR).join(constants::METADATA_DIR), &mut flushed)?;
             }
-            Some("version") => {
-                let version_file = sdkman_dir.join("var").join("version");
+            Some(constants::VERSION_FILE) => {
+                let version_file = sdkman_dir.join(constants::VAR_DIR).join(constants::VERSION_FILE);
                 if version_file.exists() {
                     fs::remove_file(&version_file)
                         .map_err(|e| LabeledError::new(format!("Failed to remove version file: {}", e)))?;
@@ -53,8 +54,8 @@ impl PluginCommand for Flush {
             }
             _ => {
                 // Flush all
-                flush_dir(&sdkman_dir.join("tmp"), &mut flushed)?;
-                flush_dir(&sdkman_dir.join("var").join("metadata"), &mut flushed)?;
+                flush_dir(&sdkman_dir.join(constants::TMP_DIR), &mut flushed)?;
+                flush_dir(&sdkman_dir.join(constants::VAR_DIR).join(constants::METADATA_DIR), &mut flushed)?;
             }
         }
         

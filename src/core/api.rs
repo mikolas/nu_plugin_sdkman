@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 const API_BASE: &str = "https://api.sdkman.io/2";

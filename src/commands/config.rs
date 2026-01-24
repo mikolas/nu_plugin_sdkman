@@ -1,4 +1,5 @@
 use nu_plugin::{EngineInterface, EvaluatedCall, PluginCommand};
+use crate::constants;
 use nu_protocol::{Category, LabeledError, Signature, Value, IntoPipelineData};
 use crate::SdkmanPlugin;
 use crate::core::env;
@@ -31,7 +32,7 @@ impl PluginCommand for Config {
     ) -> Result<nu_protocol::PipelineData, LabeledError> {
         let config_file = env::sdkman_dir()
             .map_err(|e| LabeledError::new(e.to_string()))?
-            .join("etc").join("config");
+            .join(constants::ETC_DIR).join(constants::CONFIG_FILE);
         
         let editor = std::env::var("EDITOR").unwrap_or_else(|_| "vi".to_string());
         

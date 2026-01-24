@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::constants;
 
 /// Detects the current platform and returns the SDKMAN API platform identifier.
 ///
@@ -34,19 +35,19 @@ pub fn detect_platform() -> Result<String, Box<dyn std::error::Error>> {
 pub fn sdkman_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     // Check for test override first - allows tests to use temp directories
     // without touching the user's actual ~/.sdkman installation
-    if let Ok(dir) = std::env::var("SDKMAN_DIR") {
+    if let Ok(dir) = std::env::var(constants::ENV_SDKMAN_DIR) {
         return Ok(PathBuf::from(dir));
     }
     
     // Normal behavior: use ~/.sdkman
     dirs::home_dir()
-        .map(|p| p.join(".sdkman"))
+        .map(|p| p.join(constants::SDKMAN_DIR_NAME))
         .ok_or_else(|| "Could not find home directory".into())
 }
 
 /// Returns the candidates directory path (`~/.sdkman/candidates`).
 pub fn candidates_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    sdkman_dir().map(|p| p.join("candidates"))
+    sdkman_dir().map(|p| p.join(constants::CANDIDATES_DIR))
 }
 
 /// Returns the installation directory for a specific candidate version.
@@ -63,7 +64,7 @@ pub fn candidate_dir(candidate: &str, version: &str) -> Result<PathBuf, Box<dyn 
 /// On Unix: This is a symlink pointing to the active version directory.
 /// On Windows: This is a directory containing a `.version` file.
 pub fn candidate_current(candidate: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    candidates_dir().map(|p| p.join(candidate).join("current"))
+    candidates_dir().map(|p| p.join(candidate).join(constants::CURRENT_LINK))
 }
 
 /// Checks if a specific candidate version is installed.
@@ -94,7 +95,7 @@ pub fn get_installed_versions(candidate: &str) -> Vec<String> {
             entries
                 .filter_map(|e| e.ok())
                 .filter(|e| e.path().is_dir())
-                .filter(|e| e.file_name() != "current")
+                .filter(|e| e.file_name() != constants::CURRENT_LINK)
                 .filter_map(|e| e.file_name().into_string().ok())
                 .collect()
         })
@@ -130,9 +131,9 @@ pub fn get_current_version(candidate: &str) -> Option<String> {
         // On Windows: read the .version marker file
         // We use a marker file instead of symlinks because Windows symlinks
         // require admin privileges or developer mode
-        current.join(".version")
+        current.join(constants::VERSION_MARKER)
             .exists()
-            .then(|| std::fs::read_to_string(current.join(".version")).ok())
+            .then(|| std::fs::read_to_string(current.join(constants::VERSION_MARKER)).ok())
             .flatten()
             .map(|s| s.trim().to_string())
     }
@@ -178,7 +179,7 @@ pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn
     #[cfg(windows)]
     {
         std::fs::create_dir_all(&current)?;
-        std::fs::write(current.join(".version"), version)?;
+        std::fs::write(current.join(constants::VERSION_MARKER), version)?;
     }
     
     Ok(())
@@ -186,21 +187,21 @@ pub fn set_current_version(candidate: &str, version: &str) -> Result<(), Box<dyn
 
 /// Checks if current directory has a local SDKMAN environment.
 pub fn is_local_env() -> bool {
-    std::env::var("PWD")
+    std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
-        .map(|p| p.join(".sdkman").exists())
+        .map(|p| p.join(constants::SDKMAN_DIR_NAME).exists())
         .unwrap_or(false)
 }
 
 /// Returns the local SDKMAN directory path if it exists.
 pub fn local_sdkman_dir() -> Option<PathBuf> {
-    std::env::var("PWD")
+    std::env::var(constants::ENV_PWD)
         .ok()
         .and_then(|p| std::path::PathBuf::from(p).canonicalize().ok())
         .or_else(|| std::env::current_dir().ok())
-        .map(|p| p.join(".sdkman"))
+        .map(|p| p.join(constants::SDKMAN_DIR_NAME))
         .filter(|p| p.exists())
 }
 
@@ -229,7 +230,7 @@ pub fn set_local_current_version(candidate: &str, version: &str) -> Result<(), B
     }
     
     // Current symlink is in local directory
-    let local_current = local_dir.join("candidates").join(candidate).join("current");
+    let local_current = local_dir.join(constants::CANDIDATES_DIR).join(candidate).join(constants::CURRENT_LINK);
     
     // Ensure parent directory exists
     if let Some(parent) = local_current.parent() {
@@ -248,7 +249,7 @@ pub fn set_local_current_version(candidate: &str, version: &str) -> Result<(), B
     #[cfg(windows)]
     {
         std::fs::create_dir_all(&local_current)?;
-        std::fs::write(local_current.join(".version"), version)?;
+        std::fs::write(local_current.join(constants::VERSION_MARKER), version)?;
     }
     
     Ok(())
