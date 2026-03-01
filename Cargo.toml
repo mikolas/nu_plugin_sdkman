@@ -8,8 +8,8 @@ name = "nu_plugin_sdkman"
 path = "src/main.rs"
 
 [dependencies]
-nu-plugin = "0.110.0"
-nu-protocol = "0.110.0"
+nu-plugin = "0.111.0"
+nu-protocol = "0.111.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
